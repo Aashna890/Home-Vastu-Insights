@@ -20,7 +20,7 @@ export default function ShaktiChakraCanvas({ imgEl, analysis, meta, title }) {
     const headerH = 50;
     const footerH = 44;
 
-    // Use computeLayout so the degree ring + compass labels always fit
+    // effectiveR includes space for the degree ring + upright numbers
     const { cW, cH, imgOffX, imgOffY } = computeLayout(iW, iH, cx, cy, R, headerH, footerH);
 
     canvas.width  = cW;
@@ -30,52 +30,53 @@ export default function ShaktiChakraCanvas({ imgEl, analysis, meta, title }) {
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, cW, cH);
 
-    // Draw floor plan image
     ctx.drawImage(imgEl, imgOffX, imgOffY, iW, iH);
 
-    // Plot centre in canvas space
     const ccx = imgOffX + cx;
     const ccy = imgOffY + cy;
 
     const rBrahma = R * 0.03;
     const rDev4   = R * 0.386;
     const rDev8   = R * 0.589;
-    const rDegIn  = R * 1.02;
-    const rDegOut = R * 1.12;
+    const rDegIn  = R * 1.02;   // inner edge of degree tick band
+    const rDegOut = R * 1.12;   // outer edge of degree tick band
+    const rBand   = R * 1.16;   // outer edge of color band (outermost ring)
 
-    // Coloured direction band
-    drawColorBand(ctx, ccx, ccy, R, rDegIn, na);
-    // Degree tick ring
+    // ── Coloured direction band (outermost ring, outside degree ring) ──
+    drawColorBand(ctx, ccx, ccy, rDegOut, rBand, na);
+
+    // ── Degree tick ring — ticks point inward, numbers inside the band ──
     drawDegreeRing(ctx, ccx, ccy, rDegIn, rDegOut, na);
 
-    // Ring circles (innermost → degree outer)
-    [rBrahma, rDev4, rDev8, R, rDegIn, rDegOut].forEach(r =>
-      drawCircle(ctx, ccx, ccy, r, "rgba(51,65,85,0.35)", 0.7)
+    // ── Ring boundary circles ──
+    [rBrahma, rDev4, rDev8, R, rDegIn, rDegOut, rBand].forEach(r =>
+      drawCircle(ctx, ccx, ccy, r, "rgba(51,65,85,0.38)", 0.8)
     );
 
-    // Spokes: 32 thin + 8 main
-    drawSpokes(ctx, ccx, ccy, rBrahma, R, 32, na, "rgba(148,163,184,0.28)");
-    drawSpokes(ctx, ccx, ccy, rBrahma, R,  8, na, "rgba(71,85,105,0.45)");
+    // ── Spokes: 32 thin spokes from brahma out to rDegOut (through the tick band) ──
+    drawSpokes(ctx, ccx, ccy, rBrahma, rBand, 32, na, "rgba(148,163,184,0.30)", 0.5);
+    // 8 main spokes slightly bolder
+    drawSpokes(ctx, ccx, ccy, rBrahma, rBand,  8, na, "rgba(71,85,105,0.50)",   0.8);
 
-    // Compass labels outside degree ring
-    drawCompassLabels(ctx, ccx, ccy, rDegOut, na);
+    // ── Compass labels (N/S/E/W bold, NE/NW/SE/SW medium) outside color band ──
+    drawCompassLabels(ctx, ccx, ccy, rBand, na);
 
-    // Brahmsthan gold ellipse at centre
+    // ── Brahmsthan gold ellipse at centre ──
     drawBrahma(ctx, ccx, ccy, rBrahma);
 
-    // Orange dashed plot boundary box
+    // ── Orange dashed plot boundary box ──
     ctx.save();
-    ctx.strokeStyle = "#f59e0b"; ctx.lineWidth = 2.5; ctx.setLineDash([10,6]);
-    ctx.strokeRect(imgOffX + cx - w/2, imgOffY + cy - h/2, w, h);
+    ctx.strokeStyle = "#f59e0b"; ctx.lineWidth = 2.5; ctx.setLineDash([10, 6]);
+    ctx.strokeRect(imgOffX + cx - w / 2, imgOffY + cy - h / 2, w, h);
     ctx.restore();
 
-    // Centre crosshair (yellow +)
+    // ── Centre crosshair ──
     const arm = 12;
     ctx.save();
     ctx.strokeStyle = "#f59e0b"; ctx.lineWidth = 2; ctx.setLineDash([]);
     ctx.beginPath();
-    ctx.moveTo(ccx-arm, ccy); ctx.lineTo(ccx+arm, ccy);
-    ctx.moveTo(ccx, ccy-arm); ctx.lineTo(ccx, ccy+arm);
+    ctx.moveTo(ccx - arm, ccy); ctx.lineTo(ccx + arm, ccy);
+    ctx.moveTo(ccx, ccy - arm); ctx.lineTo(ccx, ccy + arm);
     ctx.stroke();
     ctx.restore();
 

@@ -45,10 +45,11 @@ export default function AllDevtaCanvas({ imgEl, analysis, meta, title }) {
     const rDev32  = R;
     const rDegIn  = R * 1.02;
     const rDegOut = R * 1.12;
+    const rBand   = R * 1.16;   // outer edge of color band (outermost ring)
 
     const plotRect = {
-      x0: imgOffX + cx - w/2, y0: imgOffY + cy - h/2,
-      x1: imgOffX + cx + w/2, y1: imgOffY + cy + h/2,
+      x0: imgOffX + cx - w / 2, y0: imgOffY + cy - h / 2,
+      x1: imgOffX + cx + w / 2, y1: imgOffY + cy + h / 2,
     };
 
     // ── 4-Devta inner ring (clipped) ──
@@ -72,15 +73,18 @@ export default function AllDevtaCanvas({ imgEl, analysis, meta, title }) {
         d.sectorStart, d.sectorStart + d.sectorSpan, na, plotRect, color, "#ffffff66", 0.80);
     });
 
-    drawColorBand(ctx, ccx, ccy, R, rDegIn, na);
     drawDegreeRing(ctx, ccx, ccy, rDegIn, rDegOut, na);
+    drawColorBand(ctx, ccx, ccy, rDegOut, rBand, na);
 
-    [rBrahma, rDev4, rDev8, rDev32, rDegIn, rDegOut].forEach(r =>
+    [rBrahma, rDev4, rDev8, rDev32, rDegIn, rDegOut, rBand].forEach(r =>
       drawCircle(ctx, ccx, ccy, r, "rgba(51,65,85,0.4)", 0.8)
     );
-    drawSpokes(ctx, ccx, ccy, rBrahma, R,  8, na, "rgba(51,65,85,0.45)");
-    drawSpokes(ctx, ccx, ccy, rBrahma, R, 32, na, "rgba(100,116,139,0.22)");
-    drawCompassLabels(ctx, ccx, ccy, rDegOut, na);
+
+    // Spokes through degree ring
+    drawSpokes(ctx, ccx, ccy, rBrahma, rBand,  8, na, "rgba(51,65,85,0.50)",   0.8);
+    drawSpokes(ctx, ccx, ccy, rBrahma, rBand, 32, na, "rgba(100,116,139,0.22)",0.4);
+
+    drawCompassLabels(ctx, ccx, ccy, rBand, na);
 
     // ── Brahmsthan box ──
     drawBrahmaBox(ctx, ccx, ccy, w, h,
@@ -121,7 +125,7 @@ export default function AllDevtaCanvas({ imgEl, analysis, meta, title }) {
 
     // Orange dashed plot box
     ctx.save();
-    ctx.strokeStyle = "#f59e0b"; ctx.lineWidth = 2.5; ctx.setLineDash([10,6]);
+    ctx.strokeStyle = "#f59e0b"; ctx.lineWidth = 2.5; ctx.setLineDash([10, 6]);
     ctx.strokeRect(plotRect.x0, plotRect.y0, w, h);
     ctx.restore();
 

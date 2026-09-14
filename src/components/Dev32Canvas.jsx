@@ -17,15 +17,13 @@ export default function Dev32Canvas({ imgEl, analysis, meta, title }) {
 
     const { plot, dev32, dev8, dev4, brahma } = analysis;
     const { cx, cy, w, h, R, northBearing: na } = plot;
-    const iW   = imgEl.naturalWidth;
-    const iH   = imgEl.naturalHeight;
+    const iW = imgEl.naturalWidth;
+    const iH = imgEl.naturalHeight;
 
     const headerH = 50;
     const footerH = 44;
-    // Extra radius for the external 32-devta labels beyond the degree ring
     const labelExt = R * 0.26;
 
-    // computeLayout uses effectiveR = R + labelExt so external labels never clip
     const { cW, cH, imgOffX, imgOffY } = computeLayout(iW, iH, cx, cy, R + labelExt, headerH, footerH);
 
     canvas.width  = cW;
@@ -46,13 +44,14 @@ export default function Dev32Canvas({ imgEl, analysis, meta, title }) {
     const rDev32  = R;
     const rDegIn  = R * 1.02;
     const rDegOut = R * 1.12;
+    const rBand   = R * 1.16;   // outer edge of color band (outermost ring)
 
     const plotRect = {
-      x0: imgOffX + cx - w/2, y0: imgOffY + cy - h/2,
-      x1: imgOffX + cx + w/2, y1: imgOffY + cy + h/2,
+      x0: imgOffX + cx - w / 2, y0: imgOffY + cy - h / 2,
+      x1: imgOffX + cx + w / 2, y1: imgOffY + cy + h / 2,
     };
 
-    // 4-Devta light tint (clipped to plot rectangle)
+    // 4-Devta light tint
     dev4?.items?.forEach(d => {
       const tints = { N:"#bfdbfe", E:"#bbf7d0", S:"#fecaca", W:"#e2e8f0" };
       drawClippedWedge(ctx, ccx, ccy, rBrahma, rDev4,
@@ -60,7 +59,7 @@ export default function Dev32Canvas({ imgEl, analysis, meta, title }) {
         plotRect, tints[d.direction] || "#e2e8f0", null, 0.22);
     });
 
-    // 8-Devta mid tint (clipped)
+    // 8-Devta mid tint
     dev8?.items?.forEach((d, i) => {
       const color = DEV8_COLOR[d.name] || BAR_PALETTE[i % 8];
       drawClippedWedge(ctx, ccx, ccy, rDev4, rDev8,
@@ -68,7 +67,7 @@ export default function Dev32Canvas({ imgEl, analysis, meta, title }) {
         plotRect, color, null, 0.28);
     });
 
-    // 32-Devta outer ring (clipped)
+    // 32-Devta outer ring
     dev32.items.forEach((d, i) => {
       const color = getColor32(i);
       drawClippedWedge(ctx, ccx, ccy, rDev8, rDev32,
@@ -76,17 +75,20 @@ export default function Dev32Canvas({ imgEl, analysis, meta, title }) {
         plotRect, color, "#ffffff55", 0.82);
     });
 
-    drawColorBand(ctx, ccx, ccy, R, rDegIn, na);
     drawDegreeRing(ctx, ccx, ccy, rDegIn, rDegOut, na);
+    drawColorBand(ctx, ccx, ccy, rDegOut, rBand, na);
 
-    [rBrahma, rDev4, rDev8, rDev32, rDegIn, rDegOut].forEach(r =>
+    [rBrahma, rDev4, rDev8, rDev32, rDegIn, rDegOut, rBand].forEach(r =>
       drawCircle(ctx, ccx, ccy, r, "rgba(51,65,85,0.4)", 0.8)
     );
-    drawSpokes(ctx, ccx, ccy, rBrahma, R,  8, na, "rgba(51,65,85,0.45)");
-    drawSpokes(ctx, ccx, ccy, rBrahma, R, 32, na, "rgba(100,116,139,0.22)");
-    drawCompassLabels(ctx, ccx, ccy, rDegOut, na);
 
-    // Brahmsthan box (upright, gold)
+    // Spokes through degree ring
+    drawSpokes(ctx, ccx, ccy, rBrahma, rBand,  8, na, "rgba(51,65,85,0.50)",   0.8);
+    drawSpokes(ctx, ccx, ccy, rBrahma, rBand, 32, na, "rgba(100,116,139,0.22)",0.4);
+
+    drawCompassLabels(ctx, ccx, ccy, rBand, na);
+
+    // Brahmsthan box
     drawBrahmaBox(ctx, ccx, ccy, w, h,
       "Brahmsthan", brahma?.offering || "Kesar ka tikka", brahma?.nakshatra || "Rohini");
 
@@ -103,7 +105,7 @@ export default function Dev32Canvas({ imgEl, analysis, meta, title }) {
 
     // Orange dashed plot box
     ctx.save();
-    ctx.strokeStyle = "#f59e0b"; ctx.lineWidth = 2.5; ctx.setLineDash([10,6]);
+    ctx.strokeStyle = "#f59e0b"; ctx.lineWidth = 2.5; ctx.setLineDash([10, 6]);
     ctx.strokeRect(plotRect.x0, plotRect.y0, w, h);
     ctx.restore();
 
