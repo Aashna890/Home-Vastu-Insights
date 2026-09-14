@@ -16,14 +16,14 @@ export const DEV4_COLOR = {
 };
 
 export const DEV8_COLOR = {
-  Aapha:        "#4ade80",
-  Aapaavastha:  "#86efac",
-  Savita:       "#fde68a",
-  Savitra:      "#fbbf24",
-  Indra:        "#c4b5fd",
-  Jaya:         "#a78bfa",
-  Rudra:        "#93c5fd",
-  Rajyakshma:   "#60a5fa",
+  Aapha:        "#86efac",  // bright green  — NE
+  Aapaavastha:  "#67e8f9",  // cyan          — E
+  Savita:       "#fde68a",  // yellow        — SE
+  Savitra:      "#f9a8d4",  // pink          — S
+  Indra:        "#c4b5fd",  // lavender      — SW
+  Jaya:         "#6ee7b7",  // teal/mint     — W
+  Rudra:        "#93c5fd",  // light blue    — NW
+  Rajyakshma:   "#a78bfa",  // purple        — N
 };
 
 // 32 Devta colours — 8 groups of 4 matching direction colour families
