@@ -13,7 +13,8 @@ export default function ShaktiChakraCanvas({ imgEl, analysis, meta, title }) {
     if (!canvas) return;
 
     const { plot } = analysis;
-    const { cx, cy, w, h, R, northBearing: na } = plot;
+    const { cx, cy, w, h, R: Rraw, northBearing: na, chakraScale: cs = 1.0 } = plot;
+    const R = Rraw * cs;
     const iW = imgEl.naturalWidth;
     const iH = imgEl.naturalHeight;
 

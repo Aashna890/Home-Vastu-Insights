@@ -40,6 +40,7 @@ export default function VastuAnalyzer() {
 
   // Editor mode
   const [editMode,     setEditMode]     = useState(false);
+  const [chakraScale,  setChakraScale]  = useState(1.0);   // ← NEW: persists from editor
 
   const previewRef = useRef(null);
 
@@ -89,13 +90,17 @@ export default function VastuAnalyzer() {
   };
 
   // ── Core: compute analysis from box + northBearing ────────────────────────
-  const applyAnalysis = useCallback((box, nb) => {
+  const applyAnalysis = useCallback((box, nb, csOverride) => {
     const plotCx = box.x + box.w / 2;
     const plotCy = box.y + box.h / 2;
     const total  = totalArea ? parseFloat(totalArea) : null;
+    const cs     = csOverride ?? chakraScale;          // use override if provided
     setNorthBearing(nb);
-    setAnalysis(computeAnalysis({ cx: plotCx, cy: plotCy, w: box.w, h: box.h }, nb, total));
-  }, [totalArea]);
+    const result = computeAnalysis({ cx: plotCx, cy: plotCy, w: box.w, h: box.h }, nb, total);
+    // Embed chakraScale into plot so every canvas component can read it
+    result.plot.chakraScale = cs;
+    setAnalysis(result);
+  }, [totalArea, chakraScale]);
 
   // ── Compute northBearing from marker + direction code ─────────────────────
   const applyFromMarker = useCallback((box, marker, dir) => {
@@ -162,12 +167,13 @@ export default function VastuAnalyzer() {
 
   // ── Editor callbacks ──────────────────────────────────────────────────────
   // Called by BoundaryEditor when user clicks "Apply"
-  const onEditorApply = useCallback(({ box, northBearing: nb }) => {
+  const onEditorApply = useCallback(({ box, northBearing: nb, chakraScale: cs }) => {
+    const newCs = cs ?? 1.0;
+    setChakraScale(newCs);                 // ← persist for future re-runs
     setPlotBox(box);
-    applyAnalysis(box, nb);
+    applyAnalysis(box, nb, newCs);         // ← pass cs directly, don't wait for state
     setEditMode(false);
-    // Sync dirMarker to something plausible (centre-right = "E" position)
-    // so the override dropdown still works after editing
+    // Sync dirMarker so override dropdown still works after editing
     const plotCx = box.x + box.w / 2;
     const plotCy = box.y + box.h / 2;
     const a = nb * Math.PI / 180;
@@ -227,12 +233,12 @@ ${imgs.map(src => `<div class="page"><img src="${src}"/></div>`).join("\n")}
           <div className="space-y-4 p-4 rounded-xl border bg-gray-50">
             <div className="space-y-1">
               <Label>Client name</Label>
-              <Input value={clientName} placeholder="e.g. Dr Archana"
+              <Input value={clientName} placeholder="e.g. abc"
                 onChange={e => setClientName(e.target.value)} />
             </div>
             <div className="space-y-1">
               <Label>Consultant name</Label>
-              <Input value={consultantName} placeholder="e.g. Prrasana Kumar"
+              <Input value={consultantName} placeholder="e.g. Dr Archana"
                 onChange={e => setConsultantName(e.target.value)} />
             </div>
             <div className="space-y-1">
