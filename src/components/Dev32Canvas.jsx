@@ -27,7 +27,7 @@ function drawUprightBox(ctx, cx, cy, lines, fontSize) {
   const bw = maxW + padX*2, bh = lineH*vis.length + padY*2;
   const cr = Math.min(3, bh*0.18);
   const bx = cx - bw/2, by = cy - bh/2;
-  ctx.globalAlpha = 0.96; ctx.fillStyle = "#ffffff";
+  ctx.globalAlpha = 0.72; ctx.fillStyle = "#ffffff";
   ctx.beginPath();
   ctx.moveTo(bx+cr,by); ctx.lineTo(bx+bw-cr,by); ctx.arcTo(bx+bw,by,bx+bw,by+cr,cr);
   ctx.lineTo(bx+bw,by+bh-cr); ctx.arcTo(bx+bw,by+bh,bx+bw-cr,by+bh,cr);
@@ -35,7 +35,7 @@ function drawUprightBox(ctx, cx, cy, lines, fontSize) {
   ctx.lineTo(bx,by+cr); ctx.arcTo(bx,by,bx+cr,by,cr);
   ctx.closePath(); ctx.fill();
   ctx.globalAlpha = 1;
-  ctx.strokeStyle = "rgba(0,0,0,0.12)"; ctx.lineWidth = 0.6; ctx.stroke();
+  ctx.strokeStyle = "rgba(0,0,0,0.18)"; ctx.lineWidth = 0.7; ctx.stroke();
   ctx.textAlign = "center"; ctx.textBaseline = "middle";
   const totalH = lineH * vis.length;
   vis.forEach((line, i) => {
@@ -208,7 +208,7 @@ export default function Dev32Canvas({ imgEl, analysis, meta, title }) {
     })();
 
     // ── External 32-Devta labels ──
-    const fs32 = Math.max(6.5, Math.min(R * 0.027, 11));
+    const fs32 = Math.max(9, Math.min(R * 0.038, 15));
     dev32.items.forEach((d) => {
       const mid = d.sectorStart + d.sectorSpan / 2;
       drawExternal32Label(ctx, ccx, ccy, rDev32, mid, na, [

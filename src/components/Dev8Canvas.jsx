@@ -35,7 +35,7 @@ function drawUprightBox(ctx, cx, cy, lines, fontSize) {
   const bw = maxW + padX*2, bh = lineH*vis.length + padY*2;
   const cr = Math.min(3, bh*0.18);
   const bx = cx - bw/2, by = cy - bh/2;
-  ctx.globalAlpha = 0.96; ctx.fillStyle = "#ffffff";
+  ctx.globalAlpha = 0.55; ctx.fillStyle = "#ffffff";
   ctx.beginPath();
   ctx.moveTo(bx+cr,by); ctx.lineTo(bx+bw-cr,by); ctx.arcTo(bx+bw,by,bx+bw,by+cr,cr);
   ctx.lineTo(bx+bw,by+bh-cr); ctx.arcTo(bx+bw,by+bh,bx+bw-cr,by+bh,cr);
@@ -196,17 +196,39 @@ export default function Dev8Canvas({ imgEl, analysis, meta, title }) {
     })();
 
     // ── 8-Devta white label boxes ──
-    const fontSize = Math.max(9, Math.min(R * 0.040, 14));
+    // Place each label at the radial midpoint of its wedge:
+    // halfway between the Brahmsthan box edge (rBrahmaBox) and the
+    // nearest plot-wall in that spoke direction. This keeps the label
+    // squarely inside the coloured wedge regardless of plot shape.
+    const fontSize = Math.max(9, Math.min(R * 0.042, 14));
     dev8.items.forEach(d => {
-      const mid  = d.sectorStart + d.sectorSpan / 2;
-      const a    = toCanvasAngle(mid, na);
-      const dist = Math.min(w, h) * 0.29;
-      const lx   = Math.max(plotRect.x0 + fontSize*3, Math.min(plotRect.x1 - fontSize*3, ccx + dist*Math.cos(a)));
-      const ly   = Math.max(plotRect.y0 + fontSize*2, Math.min(plotRect.y1 - fontSize*2, ccy + dist*Math.sin(a)));
+      const mid = d.sectorStart + d.sectorSpan / 2;
+      const a   = toCanvasAngle(mid, na);
+      const cos = Math.cos(a), sin = Math.sin(a);
+
+      // Distance from centre to the plot wall along this angle
+      // (ray-AABB intersection, both axes, take the shorter one)
+      const hw = w / 2, hh = h / 2;
+      const tX = cos !== 0 ? (cos > 0 ? hw : -hw) / cos : Infinity;
+      const tY = sin !== 0 ? (sin > 0 ? hh : -hh) / sin : Infinity;
+      const wallDist = Math.min(Math.abs(tX), Math.abs(tY));
+
+      // Label sits 60% of the way from rBrahmaBox to the wall
+      const labelDist = rBrahmaBox + (wallDist - rBrahmaBox) * 0.60;
+
+      // Raw position
+      let lx = ccx + labelDist * cos;
+      let ly = ccy + labelDist * sin;
+
+      // Safety margin — keep box fully inside plot rect
+      const mg = fontSize * 2.8;
+      lx = Math.max(plotRect.x0 + mg, Math.min(plotRect.x1 - mg, lx));
+      ly = Math.max(plotRect.y0 + mg, Math.min(plotRect.y1 - mg, ly));
+
       drawUprightBox(ctx, lx, ly, [
         { text: d.name,      bold: true,   color: "#0f172a" },
         { text: d.offering,  bold: false,  color: "#374151" },
-        { text: d.nakshatra, italic: true, color: "#4f46e5" },
+        { text: d.nakshatra !== "-" ? d.nakshatra : null, italic: true, color: "#4f46e5" },
       ], fontSize);
     });
 

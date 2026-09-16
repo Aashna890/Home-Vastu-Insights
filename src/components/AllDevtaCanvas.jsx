@@ -44,7 +44,7 @@ function drawUprightBox(ctx, cx, cy, lines, fontSize) {
   const bx = cx - bw / 2;
   const by = cy - bh / 2;
 
-  ctx.globalAlpha = 0.96;
+  ctx.globalAlpha = 0.72;
   ctx.fillStyle   = "#ffffff";
   ctx.beginPath();
   ctx.moveTo(bx + cr, by);
@@ -55,8 +55,8 @@ function drawUprightBox(ctx, cx, cy, lines, fontSize) {
   ctx.closePath();
   ctx.fill();
   ctx.globalAlpha = 1;
-  ctx.strokeStyle = "rgba(0,0,0,0.12)";
-  ctx.lineWidth   = 0.6;
+  ctx.strokeStyle = "rgba(0,0,0,0.18)";
+  ctx.lineWidth   = 0.7;
   ctx.stroke();
 
   // Text — upright, centred
@@ -324,7 +324,7 @@ export default function AllDevtaCanvas({ imgEl, analysis, meta, title }) {
     // Upright white box centred in each 90° sector band (rBrahmaBox → rDev4)
     // Placed at 58% of the way out from inner to outer edge of the band
     // ─────────────────────────────────────────────────────────────────────────
-    const fs4 = Math.max(9, Math.min(R * 0.044, 15));
+    const fs4 = Math.max(10, Math.min(R * 0.050, 17));
     dev4.items.forEach(d => {
       const mid = d.sectorStart + d.sectorSpan / 2;
       const a   = toCanvasAngle(mid, na);
@@ -342,17 +342,31 @@ export default function AllDevtaCanvas({ imgEl, analysis, meta, title }) {
 
     // ─────────────────────────────────────────────────────────────────────────
     // INNER LABELS — 8-Devta
-    // Upright white box centred in each 45° sector band (rDev4 → rDev8)
-    // Placed at 52% of the way out
+    // Same ray-AABB approach as Dev8Canvas:
+    // Label sits 60% of the way from rDev4 to the plot wall in each spoke dir.
+    // This keeps each label inside its own wedge regardless of plot shape.
     // ─────────────────────────────────────────────────────────────────────────
-    const fs8 = Math.max(8, Math.min(R * 0.036, 12));
+    const fs8 = Math.max(9, Math.min(R * 0.042, 14));
     dev8.items.forEach(d => {
       const mid = d.sectorStart + d.sectorSpan / 2;
       const a   = toCanvasAngle(mid, na);
-      const lr  = rDev4 + (rDev8 - rDev4) * 0.52;
-      drawUprightBox(ctx,
-        ccx + lr * Math.cos(a),
-        ccy + lr * Math.sin(a),
+      const cos = Math.cos(a), sin = Math.sin(a);
+
+      // Ray-AABB: distance from centre to plot wall along this angle
+      const hw = w / 2, hh = h / 2;
+      const tX = cos !== 0 ? (cos > 0 ? hw : -hw) / cos : Infinity;
+      const tY = sin !== 0 ? (sin > 0 ? hh : -hh) / sin : Infinity;
+      const wallDist = Math.min(Math.abs(tX), Math.abs(tY));
+
+      // 60% of the way from rDev4 to the wall
+      const labelDist = rDev4 + (wallDist - rDev4) * 0.60;
+
+      // Safety clamp inside plot rect
+      const mg = fs8 * 2.8;
+      const lx = Math.max(plotRect.x0 + mg, Math.min(plotRect.x1 - mg, ccx + labelDist * cos));
+      const ly = Math.max(plotRect.y0 + mg, Math.min(plotRect.y1 - mg, ccy + labelDist * sin));
+
+      drawUprightBox(ctx, lx, ly,
         [
           { text: d.name,      bold: true,   color: "#0f172a" },
           { text: d.offering,  bold: false,  color: "#374151" },
@@ -367,7 +381,7 @@ export default function AllDevtaCanvas({ imgEl, analysis, meta, title }) {
     // Upright white box with a short radial leader line.
     // Labels sit between rDev32 and rDegIn (in the color-band gap).
     // ─────────────────────────────────────────────────────────────────────────
-    const fs32 = Math.max(6.5, Math.min(R * 0.027, 11));
+    const fs32 = Math.max(9, Math.min(R * 0.038, 15));
     dev32.items.forEach((d, i) => {
       const mid = d.sectorStart + d.sectorSpan / 2;
       drawExternal32Label(ctx, ccx, ccy, rDev32, mid, na,

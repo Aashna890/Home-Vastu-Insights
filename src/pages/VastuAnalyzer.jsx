@@ -195,19 +195,63 @@ export default function VastuAnalyzer() {
     if (!canvases.length) { alert("Run detection first."); return; }
     const win = window.open("", "_blank", "width=1,height=1");
     if (!win) { alert("Popup blocked — allow popups for this site."); return; }
-    const imgs = canvases.map(c => c.toDataURL("image/png"));
-    const name = clientName || "Report";
-    const html = `<!DOCTYPE html><html><head><title>${name}</title>
-<style>*{margin:0;padding:0;box-sizing:border-box}
-body{background:#fff}
-.page{page-break-after:always;width:100vw;display:flex;align-items:center;justify-content:center}
-.page:last-child{page-break-after:auto}
-img{max-width:100%;height:auto}
-@media print{.page{width:100%;height:100vh}}</style></head>
+
+    // Each canvas exported at NATIVE pixel resolution — lossless PNG, no downscaling.
+    const pages = canvases.map(c => ({
+      src: c.toDataURL("image/png"),
+      w:   c.width,
+      h:   c.height,
+    }));
+
+    const name = clientName || "Vastu Report";
+
+    const pageBlocks = pages.map(({ src, w, h }) => {
+      const landscape = w > h;
+      const printW    = landscape ? 277 : 194;  // mm (A4 minus 8mm margins each side)
+      const printH    = landscape ? 194 : 277;
+      const aspect    = h / w;
+      const imgW      = printW;
+      const imgH      = Math.min(printW * aspect, printH);
+      const orient    = landscape ? "landscape" : "portrait";
+      return `<div class="page" data-orient="${orient}" style="width:${printW}mm;min-height:${printH}mm;display:flex;align-items:center;justify-content:center;padding:0;margin:0 auto;page-break-after:always;background:#fff;"><img src="${src}" style="width:${imgW}mm;height:${imgH}mm;display:block;image-rendering:crisp-edges;image-rendering:-webkit-optimize-contrast;"/></div>`;
+    }).join("\n");
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>${name}</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    html, body { background:#fff; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    body { display:flex; flex-direction:column; align-items:center; gap:16px; padding:16px; background:#e5e7eb; }
+    .page { background:#fff; box-shadow:0 2px 12px rgba(0,0,0,0.18); border-radius:4px; }
+    @media print {
+      html, body { background:#fff !important; padding:0; gap:0; }
+      .page[data-orient="portrait"]  { width:210mm !important; min-height:297mm !important; }
+      .page[data-orient="landscape"] { width:297mm !important; min-height:210mm !important; }
+      .page {
+        box-shadow:none !important; border-radius:0 !important; margin:0 !important;
+        padding:8mm !important; page-break-after:always; page-break-inside:avoid;
+        display:flex !important; align-items:center !important; justify-content:center !important;
+      }
+      .page:last-child { page-break-after:auto; }
+      img { image-rendering:crisp-edges !important; image-rendering:-webkit-optimize-contrast !important; }
+      @page portrait  { size:A4 portrait;  margin:0; }
+      @page landscape { size:A4 landscape; margin:0; }
+    }
+  </style>
+</head>
 <body>
-${imgs.map(src => `<div class="page"><img src="${src}"/></div>`).join("\n")}
-<script>window.onload=function(){setTimeout(function(){window.print();},400)}<\/script>
-</body></html>`;
+${pageBlocks}
+<script>
+  window.addEventListener("load", function() {
+    setTimeout(function() { window.print(); }, 600);
+  });
+<\/script>
+</body>
+</html>`;
+
     win.document.write(html);
     win.document.close();
   }, [clientName]);
