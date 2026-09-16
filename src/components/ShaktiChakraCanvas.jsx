@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from "react";
 import {
   drawDegreeRing, drawColorBand, drawCompassLabels,
-  drawSpokes, drawCircle, drawBrahma, drawPageMeta, computeLayout,
+  drawCircle, drawBrahma, drawPageMeta, computeLayout, toCanvasAngle,
 } from "@/lib/chakraCanvas";
 
 export default function ShaktiChakraCanvas({ imgEl, analysis, meta, title }) {
@@ -17,11 +17,21 @@ export default function ShaktiChakraCanvas({ imgEl, analysis, meta, title }) {
     const iW = imgEl.naturalWidth;
     const iH = imgEl.naturalHeight;
 
+    // ── Radii — exact same as AllDevtaCanvas ──────────────────────────────────
+    const rBrahma  = R * 0.03;
+    const rDev4    = R * 0.386;
+    const rDev8    = R * 0.589;
+    const rDev32   = R;
+    const rBand    = R * 1.08;   // color-band outer / tick-ring inner
+    const rDegIn   = R * 1.08;
+    const rDegOut  = R * 1.22;
+    const rNumOut  = R * 1.30;   // compass labels sit here
+
     const headerH = 50;
     const footerH = 44;
-
-    // effectiveR includes space for the degree ring + upright numbers
-    const { cW, cH, imgOffX, imgOffY } = computeLayout(iW, iH, cx, cy, R, headerH, footerH);
+    const labelExt = rNumOut + R * 0.12;
+    const { cW, cH, imgOffX, imgOffY } =
+      computeLayout(iW, iH, cx, cy, labelExt, headerH, footerH);
 
     canvas.width  = cW;
     canvas.height = cH;
@@ -29,39 +39,54 @@ export default function ShaktiChakraCanvas({ imgEl, analysis, meta, title }) {
     const ctx = canvas.getContext("2d");
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, cW, cH);
-
     ctx.drawImage(imgEl, imgOffX, imgOffY, iW, iH);
 
     const ccx = imgOffX + cx;
     const ccy = imgOffY + cy;
 
-    const rBrahma = R * 0.03;
-    const rDev4   = R * 0.386;
-    const rDev8   = R * 0.589;
-    const rDegIn  = R * 1.02;   // inner edge of degree tick band
-    const rDegOut = R * 1.12;   // outer edge of degree tick band
-    const rBand   = R * 1.16;   // outer edge of color band (outermost ring)
+    // ── Color band (rDev32 → rBand) ──
+    drawColorBand(ctx, ccx, ccy, rDev32, rBand, na);
 
-    // ── Coloured direction band (outermost ring, outside degree ring) ──
-    drawColorBand(ctx, ccx, ccy, rDegOut, rBand, na);
-
-    // ── Degree tick ring — ticks point inward, numbers inside the band ──
+    // ── Degree tick ring (rDegIn → rDegOut) ──
     drawDegreeRing(ctx, ccx, ccy, rDegIn, rDegOut, na);
 
-    // ── Ring boundary circles ──
-    [rBrahma, rDev4, rDev8, R, rDegIn, rDegOut, rBand].forEach(r =>
-      drawCircle(ctx, ccx, ccy, r, "rgba(51,65,85,0.38)", 0.8)
+    // ── Ring boundary circles — exact AllDevta weights ──
+    const ringStyles = [
+      { r: rBrahma, color: "rgba(15,23,42,0.50)", lw: 0.8 },
+      { r: rDev4,   color: "rgba(15,23,42,0.60)", lw: 1.2 },
+      { r: rDev8,   color: "rgba(15,23,42,0.60)", lw: 1.2 },
+      { r: rDev32,  color: "rgba(15,23,42,0.80)", lw: 2.0 },
+      { r: rDegIn,  color: "rgba(15,23,42,0.60)", lw: 1.0 },
+      { r: rDegOut, color: "rgba(15,23,42,0.60)", lw: 1.0 },
+    ];
+    ringStyles.forEach(({ r, color, lw }) =>
+      drawCircle(ctx, ccx, ccy, r, color, lw)
     );
 
-    // ── Spokes: 32 thin spokes from brahma out to rDegOut (through the tick band) ──
-    drawSpokes(ctx, ccx, ccy, rBrahma, rBand, 32, na, "rgba(148,163,184,0.30)", 0.5);
-    // 8 main spokes slightly bolder
-    drawSpokes(ctx, ccx, ccy, rBrahma, rBand,  8, na, "rgba(71,85,105,0.50)",   0.8);
+    // ── Spokes — 32 thin + 8 thick, from brahma centre through tick ring ──
+    for (let i = 0; i < 32; i++) {
+      const a = toCanvasAngle(i * (360 / 32), na);
+      ctx.beginPath();
+      ctx.moveTo(ccx + rBrahma * Math.cos(a), ccy + rBrahma * Math.sin(a));
+      ctx.lineTo(ccx + rDegOut * Math.cos(a), ccy + rDegOut * Math.sin(a));
+      ctx.strokeStyle = "rgba(30,41,59,0.55)";
+      ctx.lineWidth   = 0.7;
+      ctx.stroke();
+    }
+    for (let i = 0; i < 8; i++) {
+      const a = toCanvasAngle(i * 45, na);
+      ctx.beginPath();
+      ctx.moveTo(ccx + rBrahma * Math.cos(a), ccy + rBrahma * Math.sin(a));
+      ctx.lineTo(ccx + rDegOut * Math.cos(a), ccy + rDegOut * Math.sin(a));
+      ctx.strokeStyle = "rgba(15,23,42,0.85)";
+      ctx.lineWidth   = 1.8;
+      ctx.stroke();
+    }
 
-    // ── Compass labels (N/S/E/W bold, NE/NW/SE/SW medium) outside color band ──
-    drawCompassLabels(ctx, ccx, ccy, rBand, na);
+    // ── Compass labels outside tick ring ──
+    drawCompassLabels(ctx, ccx, ccy, rNumOut, na);
 
-    // ── Brahmsthan gold ellipse at centre ──
+    // ── Brahmsthan gold dot at centre ──
     drawBrahma(ctx, ccx, ccy, rBrahma);
 
     // ── Orange dashed plot boundary box ──

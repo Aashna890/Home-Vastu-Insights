@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from "react";
 import {
   drawDegreeRing, drawColorBand, drawCompassLabels,
-  drawCircle, drawBrahmaBox, drawClippedWedge,
+  drawCircle, drawClippedWedge,
   drawPageMeta, computeLayout, getColor32, DEV4_COLOR, DEV8_COLOR,
   toCanvasAngle,
 } from "@/lib/chakraCanvas";
@@ -262,14 +262,61 @@ export default function AllDevtaCanvas({ imgEl, analysis, meta, title }) {
     drawCompassLabels(ctx, ccx, ccy, rNumOut, na);
 
     // ─────────────────────────────────────────────────────────────────────────
-    // BRAHMSTHAN golden box — always on top
+    // BRAHMSTHAN golden box — smaller (26% of plot) + faint translucent yellow
+    // so inner devta wedges and floor plan show through clearly (ref images 2 & 3)
     // ─────────────────────────────────────────────────────────────────────────
-    drawBrahmaBox(
-      ctx, ccx, ccy, w, h,
-      "Brahmsthan",
-      brahma?.offering  || "Kesar ka tikka",
-      brahma?.nakshatra || "Rohini"
-    );
+    (() => {
+      const bw = w * 0.26;   // 26% of plot width  (was 38.6%)
+      const bh = h * 0.26;   // 26% of plot height (was 38.6%)
+      const hw = bw / 2, hh = bh / 2;
+
+      // Faint translucent gold — devta wedges and floor plan show through
+      const g = ctx.createLinearGradient(ccx - hw, ccy - hh, ccx + hw, ccy + hh);
+      g.addColorStop(0,    "rgba(254,252,232, 0.70)");
+      g.addColorStop(0.45, "rgba(253,230,138, 0.55)");
+      g.addColorStop(1,    "rgba(251,191,36,  0.48)");
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(ccx - hw, ccy - hh, bw, bh);
+      ctx.fillStyle = g;
+      ctx.fill();
+      ctx.strokeStyle = "rgba(15,23,42,0.75)";
+      ctx.lineWidth   = 2;
+      ctx.stroke();
+
+      // Very faint sunburst rays inside box
+      ctx.globalAlpha = 0.08;
+      ctx.strokeStyle = "#92400e";
+      ctx.lineWidth   = 0.6;
+      const sr = Math.hypot(hw, hh) * 1.1;
+      for (let i = 0; i < 24; i++) {
+        const a = (i / 24) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(ccx, ccy);
+        ctx.lineTo(ccx + Math.cos(a) * sr, ccy + Math.sin(a) * sr);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+
+      // Text — upright, centred
+      const fs = Math.max(9, Math.min(hw * 0.28, hh * 0.28));
+      ctx.textAlign    = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle    = "#92400e";
+      ctx.font         = `bold ${fs}px sans-serif`;
+      ctx.fillText("Brahmsthan", ccx, ccy - fs * 0.9);
+      ctx.fillStyle = "#b45309";
+      ctx.font      = `${fs * 0.78}px sans-serif`;
+      ctx.fillText(brahma?.offering || "Kesar ka tikka", ccx, ccy + fs * 0.3);
+      const nak = brahma?.nakshatra;
+      if (nak && nak !== "-") {
+        ctx.fillStyle = "#d97706";
+        ctx.font      = `italic ${fs * 0.68}px sans-serif`;
+        ctx.fillText(nak, ccx, ccy + fs * 1.42);
+      }
+      ctx.restore();
+    })();
 
     // ─────────────────────────────────────────────────────────────────────────
     // INNER LABELS — 4-Devta
