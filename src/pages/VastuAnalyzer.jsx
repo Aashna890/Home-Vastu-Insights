@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback } from "react";
 import {
   Upload, ScanLine, Compass, Loader2,
-  Image as ImageIcon, RotateCcw, FileDown, Pencil,
+  Image as ImageIcon, RotateCcw, FileDown, Pencil, LogOut, Settings,
 } from "lucide-react";
 import { Button }  from "@/components/ui/button";
 import { Input  }  from "@/components/ui/input";
@@ -16,10 +16,13 @@ import Dev8Canvas            from "@/components/Dev8Canvas";
 import Dev32Canvas           from "@/components/Dev32Canvas";
 import Dev32AnalysisCanvas   from "@/components/Dev32AnalysisCanvas";
 import AllDevtaCanvas        from "@/components/AllDevtaCanvas";
+import { useAuth }           from "@/lib/AuthContext";
 
 const DIR_BEARING = Object.fromEntries(DIRECTIONS.map(d => [d.code, d.bearing]));
 
 export default function VastuAnalyzer() {
+  const { user, isAdmin, logout } = useAuth();
+
   const [clientName,     setClientName]     = useState("");
   const [consultantName, setConsultantName] = useState("");
   const [totalArea,      setTotalArea]      = useState("");
@@ -29,7 +32,7 @@ export default function VastuAnalyzer() {
   const [imgEl,     setImgEl]     = useState(null);
 
   const [detecting,    setDetecting]    = useState(false);
-  const [plotBox,      setPlotBox]      = useState(null);   // image px
+  const [plotBox,      setPlotBox]      = useState(null);
   const [geminiResult, setGeminiResult] = useState(null);
   const [detectedDir,  setDetectedDir]  = useState(null);
   const [dirMarker,    setDirMarker]    = useState(null);
@@ -38,9 +41,8 @@ export default function VastuAnalyzer() {
   const [error,        setError]        = useState("");
   const [manualDir,    setManualDir]    = useState("");
 
-  // Editor mode
   const [editMode,     setEditMode]     = useState(false);
-  const [chakraScale,  setChakraScale]  = useState(1.0);   // ← NEW: persists from editor
+  const [chakraScale,  setChakraScale]  = useState(1.0);
 
   const previewRef = useRef(null);
 
@@ -94,10 +96,9 @@ export default function VastuAnalyzer() {
     const plotCx = box.x + box.w / 2;
     const plotCy = box.y + box.h / 2;
     const total  = totalArea ? parseFloat(totalArea) : null;
-    const cs     = csOverride ?? chakraScale;          // use override if provided
+    const cs     = csOverride ?? chakraScale;
     setNorthBearing(nb);
     const result = computeAnalysis({ cx: plotCx, cy: plotCy, w: box.w, h: box.h }, nb, total);
-    // Embed chakraScale into plot so every canvas component can read it
     result.plot.chakraScale = cs;
     setAnalysis(result);
   }, [totalArea, chakraScale]);
@@ -150,7 +151,7 @@ export default function VastuAnalyzer() {
     }
   };
 
-  // ── Manual canvas click (direction marker repositioning) ──────────────────
+  // ── Manual canvas click ───────────────────────────────────────────────────
   const onCanvasClick = (e) => {
     if (!imgEl || !plotBox || editMode) return;
     const canvas = previewRef.current;
@@ -166,14 +167,12 @@ export default function VastuAnalyzer() {
   };
 
   // ── Editor callbacks ──────────────────────────────────────────────────────
-  // Called by BoundaryEditor when user clicks "Apply"
   const onEditorApply = useCallback(({ box, northBearing: nb, chakraScale: cs }) => {
     const newCs = cs ?? 1.0;
-    setChakraScale(newCs);                 // ← persist for future re-runs
+    setChakraScale(newCs);
     setPlotBox(box);
-    applyAnalysis(box, nb, newCs);         // ← pass cs directly, don't wait for state
+    applyAnalysis(box, nb, newCs);
     setEditMode(false);
-    // Sync dirMarker so override dropdown still works after editing
     const plotCx = box.x + box.w / 2;
     const plotCy = box.y + box.h / 2;
     const a = nb * Math.PI / 180;
@@ -196,7 +195,6 @@ export default function VastuAnalyzer() {
     const win = window.open("", "_blank", "width=1,height=1");
     if (!win) { alert("Popup blocked — allow popups for this site."); return; }
 
-    // Each canvas exported at NATIVE pixel resolution — lossless PNG, no downscaling.
     const pages = canvases.map(c => ({
       src: c.toDataURL("image/png"),
       w:   c.width,
@@ -207,7 +205,7 @@ export default function VastuAnalyzer() {
 
     const pageBlocks = pages.map(({ src, w, h }) => {
       const landscape = w > h;
-      const printW    = landscape ? 277 : 194;  // mm (A4 minus 8mm margins each side)
+      const printW    = landscape ? 277 : 194;
       const printH    = landscape ? 194 : 277;
       const aspect    = h / w;
       const imgW      = printW;
@@ -260,13 +258,45 @@ ${pageBlocks}
 
   return (
     <div className="min-h-screen bg-white">
-      <header className="border-b bg-white px-6 py-4 flex items-center gap-3">
-        <Compass className="w-6 h-6 text-slate-700" />
-        <div>
-          <h1 className="text-lg font-bold">Vastu Shakti Chakra Analyzer</h1>
-          <p className="text-xs text-gray-500">
-            Gemini AI · boundary detection · direction reading · 4 / 8 / 32 Devta analysis
-          </p>
+      {/* ── Header ── */}
+      <header className="border-b bg-white px-6 py-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Compass className="w-6 h-6 text-slate-700" />
+          <div>
+            <h1 className="text-lg font-bold">Vastu Shakti Chakra Analyzer</h1>
+            <p className="text-xs text-gray-500">
+              Gemini AI · boundary detection · direction reading · 4 / 8 / 32 Devta analysis
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Admin link — only visible to admin */}
+          {isAdmin && (
+            <Button variant="outline" size="sm" asChild className="flex items-center gap-1.5">
+              <a href="/admin">
+                <Settings className="w-3.5 h-3.5" />
+                Manage Access
+              </a>
+            </Button>
+          )}
+
+          {/* User email + sign out */}
+          {user && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 hidden sm:block">{user.email}</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={logout}
+                className="flex items-center gap-1 text-muted-foreground"
+                title="Sign out"
+              >
+                <LogOut className="w-4 h-4" />
+                <span className="hidden sm:inline">Sign out</span>
+              </Button>
+            </div>
+          )}
         </div>
       </header>
 
@@ -374,7 +404,6 @@ ${pageBlocks}
                 </p>
               </div>
             ) : editMode && plotBox ? (
-              /* ── EDITOR MODE ── */
               <BoundaryEditor
                 imgEl={imgEl}
                 initialBox={plotBox}
@@ -383,7 +412,6 @@ ${pageBlocks}
                 onCancel={onEditorCancel}
               />
             ) : (
-              /* ── PREVIEW MODE ── */
               <>
                 <canvas
                   ref={previewRef}
