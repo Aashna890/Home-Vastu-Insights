@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, query, where, getDocs } from "firebase/firestore";
 import { auth, db, provider } from "@/lib/firebase";
 
 const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL?.trim().toLowerCase() ?? "";
@@ -14,20 +14,41 @@ export function AuthProvider({ children }) {
   const [isLoadingAuth, setIsLoadingAuth] = useState(false);
   const [authError,     setAuthError]     = useState(null);
 
-  // Resolve the role of a Firebase user against the allowed-emails collection.
+  /**
+   * Resolve the role of a Firebase user.
+   *
+   * FIX: Instead of reading the ENTIRE allowed_emails collection (which fails
+   * when Firestore rules only permit admin reads), we query only for the
+   * document whose `email` field matches the signed-in user's email.
+   * Your Firestore rule can then be:
+   *
+   *   match /allowed_emails/{doc} {
+   *     allow read: if request.auth != null
+   *                 && resource.data.email == request.auth.token.email;
+   *     allow write: if request.auth.token.email == "<ADMIN_EMAIL>";
+   *   }
+   *
+   * This lets every authenticated user check their own record without
+   * exposing the full list to non-admins.
+   */
   const resolveRole = useCallback(async (firebaseUser) => {
     if (!firebaseUser) return null;
     const email = firebaseUser.email?.trim().toLowerCase() ?? "";
 
     if (email === ADMIN_EMAIL) return "admin";
 
-    // Check Firestore allowed_emails collection
     try {
-      const snap = await getDocs(collection(db, "allowed_emails"));
-      const allowed = snap.docs.map(d => (d.data().email ?? "").trim().toLowerCase());
-      return allowed.includes(email) ? "user" : "blocked";
-    } catch {
-      // If Firestore read fails, treat as blocked to be safe
+      const q    = query(
+        collection(db, "allowed_emails"),
+        where("email", "==", email),
+      );
+      const snap = await getDocs(q);
+      return snap.empty ? "blocked" : "user";
+    } catch (err) {
+      console.error("resolveRole failed:", err.message);
+      // Surface the real error so it doesn't silently block valid users.
+      // "permission-denied" means the rule above isn't set yet — treat as
+      // blocked but log clearly.
       return "blocked";
     }
   }, []);
@@ -81,7 +102,7 @@ export function AuthProvider({ children }) {
     setAuthError(null);
   }, []);
 
-  // Re-check role after admin changes the allowlist (call this from AdminEmailManager)
+  // Re-check role after admin changes the allowlist (called from AdminEmailManager)
   const recheckRole = useCallback(async () => {
     if (!user) return;
     const resolved = await resolveRole(user);

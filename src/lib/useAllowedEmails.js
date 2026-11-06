@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   collection, onSnapshot, addDoc, updateDoc, deleteDoc,
   doc, serverTimestamp, query, orderBy,
@@ -13,6 +13,14 @@ export function useAllowedEmails() {
   const [emails,  setEmails]  = useState([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState(null);
+
+  /**
+   * FIX: Use a ref to stash the entry being removed so it survives
+   * re-renders and useCallback recreation.  The old pattern stored the
+   * stash as `removeEmail._stash` — a property on the function object
+   * itself — which is lost whenever useCallback recreates the function.
+   */
+  const removeStashRef = useRef(null);
 
   // Real-time Firestore listener
   useEffect(() => {
@@ -38,15 +46,12 @@ export function useAllowedEmails() {
   }, [isAdmin]);
 
   // ── Optimistic add ─────────────────────────────────────────────────────────
-  // Inserts a temporary entry immediately so the UI feels instant.
-  // Firestore confirms (or rolls back) in the background.
   const addEmail = useCallback(async (rawEmail) => {
     if (!isAdmin) return;
     const email = rawEmail.trim().toLowerCase();
     if (!email) throw new Error("Email cannot be empty");
 
-    // Optimistic insert with a temp id
-    const tempId = `temp_${Date.now()}`;
+    const tempId    = `temp_${Date.now()}`;
     const tempEntry = { id: tempId, email, addedAt: new Date(), addedBy: user?.email ?? "" };
     setEmails(prev => [tempEntry, ...prev]);
 
@@ -56,9 +61,8 @@ export function useAllowedEmails() {
         addedAt: serverTimestamp(),
         addedBy: user?.email ?? "",
       });
-      // onSnapshot will fire and replace tempEntry with the real doc
+      // onSnapshot fires and swaps tempEntry for the real doc
     } catch (err) {
-      // Roll back optimistic entry on failure
       setEmails(prev => prev.filter(e => e.id !== tempId));
       throw err;
     }
@@ -70,7 +74,6 @@ export function useAllowedEmails() {
     const email = rawEmail.trim().toLowerCase();
     if (!email) throw new Error("Email cannot be empty");
 
-    // Optimistic update
     setEmails(prev => prev.map(e => e.id === id ? { ...e, email } : e));
 
     try {
@@ -85,19 +88,24 @@ export function useAllowedEmails() {
   const removeEmail = useCallback(async (id) => {
     if (!isAdmin) return;
 
-    // Stash for rollback, then remove immediately
+    // FIX: stash via ref before the state update so it's always reachable
     setEmails(prev => {
-      const stash = prev.find(e => e.id === id);
-      removeEmail._stash = stash;
+      removeStashRef.current = prev.find(e => e.id === id) ?? null;
       return prev.filter(e => e.id !== id);
     });
 
     try {
       await deleteDoc(doc(db, COL, id));
+      removeStashRef.current = null;
     } catch (err) {
-      // Roll back
-      if (removeEmail._stash) {
-        setEmails(prev => [removeEmail._stash, ...prev]);
+      // Roll back using the ref — always valid regardless of re-renders
+      if (removeStashRef.current) {
+        setEmails(prev => {
+          // Avoid duplicate if onSnapshot already re-added it
+          if (prev.some(e => e.id === removeStashRef.current.id)) return prev;
+          return [removeStashRef.current, ...prev];
+        });
+        removeStashRef.current = null;
       }
       throw err;
     }

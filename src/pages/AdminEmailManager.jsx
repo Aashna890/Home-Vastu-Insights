@@ -19,12 +19,17 @@ export default function AdminEmailManager() {
   const { isAdmin, isLoadingAuth, authChecked, user, logout } = useAuth();
   const { emails, loading, error, addEmail, updateEmail, removeEmail } = useAllowedEmails();
 
-  const [newEmail,    setNewEmail]    = useState("");
-  const [addError,    setAddError]    = useState("");
+  const [newEmail,  setNewEmail]  = useState("");
+  const [addError,  setAddError]  = useState("");
 
   // Inline edit state: { id, value }
-  const [editing,     setEditing]     = useState(null);
-  const [editError,   setEditError]   = useState("");
+  const [editing,   setEditing]   = useState(null);
+  const [editError, setEditError] = useState("");
+
+  // FIX: Track which row is mid-save so the input can be disabled during the
+  // async write.  Previously this was `savingId` which was never declared,
+  // causing a ReferenceError crash the moment the edit row rendered.
+  const [savingId,  setSavingId]  = useState(null);
 
   // Guard — only admin can access
   if (!isLoadingAuth && authChecked && !isAdmin) {
@@ -47,13 +52,11 @@ export default function AdminEmailManager() {
     const dup = emails.some(e => e.email === newEmail.trim().toLowerCase());
     if (dup) { setAddError("This email is already in the list."); return; }
 
-    // Optimistic — clear input instantly, fire Firestore in background
     const submitted = newEmail;
     setNewEmail("");
     try {
       await addEmail(submitted);
     } catch (err) {
-      // Restore input so user can retry
       setNewEmail(submitted);
       setAddError(err.message);
     }
@@ -70,24 +73,26 @@ export default function AdminEmailManager() {
     if (!editing) return;
     setEditError("");
     if (!validateEmail(editing.value)) { setEditError("Enter a valid email address."); return; }
-    const dup = emails.some(e => e.email === editing.value.trim().toLowerCase() && e.id !== editing.id);
+    const dup = emails.some(
+      e => e.email === editing.value.trim().toLowerCase() && e.id !== editing.id
+    );
     if (dup) { setEditError("This email already exists."); return; }
 
-    // Optimistic — close edit row instantly, write in background
     const { id, value } = editing;
     setEditing(null);
+    setSavingId(id);
     try {
       await updateEmail(id, value);
     } catch (err) {
-      // Re-open edit row with error if write fails
       setEditing({ id, value });
       setEditError(err.message);
+    } finally {
+      setSavingId(null);
     }
   };
 
   const handleRemove = async (id) => {
     if (editing?.id === id) setEditing(null);
-    // Optimistic — removeEmail updates UI instantly, Firestore write in background
     try {
       await removeEmail(id);
     } catch {
@@ -130,7 +135,6 @@ export default function AdminEmailManager() {
               onChange={e => { setNewEmail(e.target.value); setAddError(""); }}
               onKeyDown={e => e.key === "Enter" && handleAdd()}
               className="flex-1"
-              disabled={false}
             />
             <Button onClick={handleAdd} disabled={!newEmail.trim()} className="shrink-0">
               <Plus className="w-4 h-4" />
@@ -181,21 +185,32 @@ export default function AdminEmailManager() {
                           type="email"
                           value={editing.value}
                           autoFocus
-                          onChange={e => { setEditing(prev => ({ ...prev, value: e.target.value })); setEditError(""); }}
-                          onKeyDown={e => { if (e.key === "Enter") handleSaveEdit(); if (e.key === "Escape") cancelEdit(); }}
+                          onChange={e => {
+                            setEditing(prev => ({ ...prev, value: e.target.value }));
+                            setEditError("");
+                          }}
+                          onKeyDown={e => {
+                            if (e.key === "Enter")  handleSaveEdit();
+                            if (e.key === "Escape") cancelEdit();
+                          }}
                           className="flex-1 h-8 text-sm"
+                          // FIX: savingId is now a proper state variable
                           disabled={savingId === entry.id}
                         />
                         <Button
                           size="sm" variant="default"
                           onClick={handleSaveEdit}
+                          disabled={savingId === entry.id}
                           className="h-8 px-3"
                         >
-                          <Check className="w-3.5 h-3.5" />
+                          {savingId === entry.id
+                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            : <Check className="w-3.5 h-3.5" />}
                         </Button>
                         <Button
                           size="sm" variant="ghost"
                           onClick={cancelEdit}
+                          disabled={savingId === entry.id}
                           className="h-8 px-3 text-muted-foreground"
                         >
                           <X className="w-3.5 h-3.5" />
@@ -219,7 +234,7 @@ export default function AdminEmailManager() {
                         <Button
                           size="sm" variant="ghost"
                           onClick={() => startEdit(entry)}
-                          disabled={!!editing || !!removingId}
+                          disabled={!!editing}
                           className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
                           title="Edit email"
                         >
@@ -246,7 +261,7 @@ export default function AdminEmailManager() {
         {/* ── Info box ── */}
         <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg px-4 py-3 space-y-1">
           <p>• Only emails in this list (plus the admin email) can access the Vastu Analyzer.</p>
-          <p>• Changes take effect the next time a user signs in.</p>
+          <p>• Changes take effect the next time a user signs in or refreshes the page.</p>
           <p>• The admin email is set via the <code className="bg-muted px-1 rounded">VITE_ADMIN_EMAIL</code> environment variable and cannot be managed here.</p>
         </div>
 
